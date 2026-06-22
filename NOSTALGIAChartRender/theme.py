@@ -35,11 +35,13 @@ class Theme:
     track_reserved_top: int = 80
     track_reserved_bottom: int = 60
     key_count: int = 28
-    resize: int = 4
+    resize: float = 2.2
     margin_left: int = 120
     margin_right: int = 200
     margin_bg: int = 40
-    note_height: int = 16
+    note_height: int = 24
+    note_width_scale: float = 1.3
+    note_corner_radius: int = 0
     note_border: int = 2
     judge_line_offset: int = 100
     bar_line_width: int = 2
@@ -51,7 +53,8 @@ class Theme:
     track_split_line: Color = (60, 60, 75, 180)
     judge_line: Color = (255, 255, 255, 200)
     beat_line: Color = (120, 120, 120, 80)
-    variable_speed_layer: Color = (255, 255, 100, 30)
+    velocity_zone_light_layer: Color = (120, 205, 255, 42)
+    velocity_zone_heavy_layer: Color = (255, 232, 120, 48)
     transparent: Color = (255, 255, 255, 0)
 
     note_colors: dict[int, Color] = field(default_factory=lambda: {

@@ -64,9 +64,9 @@ python render_chart.py m_t0052_summerdiary 2  # Expert
 
 ```python
 _draw_track_background()          # 黑白键背景
+_draw_velocity_zone_layer()       # 力度区域半透明覆盖（轻段浅蓝 / 重段浅黄）
 _draw_beat_lines()                # 拍子线
 _draw_key_separators()            # 琴键分隔线
-_draw_variable_speed_layer()      # 变速区域半透明覆盖
 _draw_glissando_chain_connections()  # Glissando 链平行四边形连接
 _draw_notes()                     # 所有音符
 _draw_judge_line()                # 判定线
@@ -81,7 +81,7 @@ _draw_footer()                    # 底部生成器信息
 
 当谱面时长 > 25 秒时，自动按小节切分为多段，每段约 20 秒，横向拼接。
 
-切分逻辑在 `_calculate_segments()` 中，基于 BPM 计算小节边界。
+切分逻辑在 `_calculate_segments()` 中，基于 BPM 估算小节边界。
 
 ### Note 类型与纹理映射
 
@@ -128,7 +128,7 @@ _draw_footer()                    # 底部生成器信息
 ### parser.py
 
 - `parse_chart(xml_path)` → `Chart` 对象
-- 解析 `header`、`event_data`（仅 type=0 BPM）、`note_data`
+- 解析 `header`、`event_data`（仅 type=0 BPM）、`note_data`、`velocity_zone_data`
 - `KNOWN_TYPES = {0, 2, 4, 8, 10, 12, 64}`
 
 ### element.py
@@ -146,8 +146,8 @@ _draw_footer()                    # 底部生成器信息
 @dataclass
 class Theme:
     track_width: int = 900      # 轨道宽度
-    resize: int = 4             # 时间缩放比例（越小谱面越长）
-    note_height: int = 16       # 音符高度
+    resize: float = 2.2         # 时间缩放比例（越小谱面越长）
+    note_height: int = 24       # 音符高度
     # ... 颜色配置
 ```
 
@@ -185,7 +185,7 @@ if diff == "Real" and display_level.isdigit():
 
 3. **event_data type 1~8**：事件类型含义未完全解码
 
-4. **velocity_zone_data**：未在渲染中使用
+4. **velocity_zone_data 映射**：当前按 `velocity_type=0` 作为轻段、`velocity_type=1` 作为重段渲染；如后续实机核对相反，需要交换颜色映射
 
 5. **note_type=8 (Normal-sfx)**：与 type=0 外观相同，但可能应有不同视觉效果
 

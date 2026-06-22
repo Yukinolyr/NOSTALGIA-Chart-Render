@@ -5,7 +5,7 @@ NOSTALGIA chart XML 解析器
 from __future__ import annotations
 import xml.etree.ElementTree as ET
 
-from .element import Chart, Note, Timing
+from .element import Chart, Note, Timing, VelocityZone
 
 
 KNOWN_TYPES = {0, 2, 4, 8, 10, 12, 64}
@@ -54,12 +54,33 @@ def parse_chart(xml_path: str) -> Chart:
     if not timing_list and "first_bpm" in header:
         timing_list.append(Timing(time_ms=0, bpm=header["first_bpm"]))
 
+    velocity_zone_list: list[VelocityZone] = []
+    velocity_zone_data = root.find("velocity_zone_data")
+    if velocity_zone_data is not None:
+        for elem in velocity_zone_data.findall("velocity_zone"):
+            start_ms = _int(elem, "start_timing_msec")
+            end_ms = _int(elem, "end_timing_msec")
+            if end_ms <= start_ms:
+                continue
+            velocity_zone_list.append(VelocityZone(
+                index=_int(elem, "index"),
+                start_ms=start_ms,
+                end_ms=end_ms,
+                velocity_type=_int(elem, "velocity_type"),
+            ))
+
+    raw_note_count = 0
     note_list: list[Note] = []
     note_data = root.find("note_data")
     if note_data is not None:
         for elem in note_data.findall("note"):
             note_type = _int(elem, "note_type")
             if note_type not in KNOWN_TYPES:
+                continue
+            raw_note_count += 1
+
+            hand = _int(elem, "hand")
+            if hand == 2:
                 continue
 
             note_list.append(Note(
@@ -71,9 +92,15 @@ def parse_chart(xml_path: str) -> Chart:
                 min_key_index=_int(elem, "min_key_index"),
                 max_key_index=_int(elem, "max_key_index"),
                 note_type=note_type,
-                hand=_int(elem, "hand"),
+                hand=hand,
                 param1=_int(elem, "param1"),
                 param2=_int(elem, "param2"),
             ))
 
-    return Chart(header=header, timing_list=timing_list, note_list=note_list)
+    return Chart(
+        header=header,
+        timing_list=timing_list,
+        note_list=note_list,
+        velocity_zone_list=velocity_zone_list,
+        raw_note_count=raw_note_count,
+    )

@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from typing import Optional, Tuple
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from .element import Chart, Note
 from .rhythm import analyze_chart_rhythm
@@ -43,7 +43,7 @@ class Coordinate:
 
     def note_rect(self, note: Note) -> Tuple[int, int, int, int]:
         base_width = round(self.theme.key_width * (note.key_width + 1))
-        total_width = round(base_width * 1.3)
+        total_width = round(base_width * self.theme.note_width_scale)
         center_x = self.key_to_x(note.center_key + 0.5)
         left = center_x - total_width // 2
         right = center_x + total_width // 2
@@ -89,17 +89,55 @@ class Renderer:
         self.draw = ImageDraw.Draw(self.im)
 
         self._draw_track_background()
+        self._draw_velocity_zone_layer()
         self._draw_beat_lines()
         self._draw_key_separators()
-        self._draw_variable_speed_layer()
         self._draw_glissando_chain_connections()
         self._draw_notes()
         self._draw_judge_line()
         self._post_process_segment()
         self._draw_segment_annotations()
-        self._add_header()
-        self._draw_combo_milestones()
-        self._draw_footer()
+
+    def _apply_note_rounding(self, image: Image.Image, fill_color: tuple) -> Image.Image:
+        radius = self.theme.note_corner_radius
+        if radius <= 0:
+            return image
+
+        radius = min(radius, image.width // 2, image.height // 2)
+        if radius <= 0:
+            return image
+
+        rounded = image.copy()
+        mask = Image.new("L", rounded.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle(
+            [0, 0, rounded.width - 1, rounded.height - 1],
+            radius=radius,
+            fill=255,
+        )
+        base = Image.new("RGBA", rounded.size, fill_color)
+        base.putalpha(mask)
+        base.alpha_composite(rounded)
+        base.putalpha(ImageChops.multiply(base.getchannel("A"), mask))
+        return base
+
+    def _rounded_rect(self, box: list[int], fill: tuple, outline: tuple | None = None, width: int = 1):
+        radius = self.theme.note_corner_radius
+        if radius > 0:
+            self.draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
+        else:
+            self.draw.rectangle(box, fill=fill, outline=outline, width=width)
+
+    def _note_fill_color(self, note: Note, note_type: int | None = None) -> tuple:
+        note_type = note.note_type if note_type is None else note_type
+        if note_type == 10:
+            return (255, 210, 80, 230)
+        if note_type == 12:
+            return (180, 180, 180, 220)
+        if note_type == 64:
+            return (255, 190, 70, 230)
+        if note_type in (0, 2, 4, 8):
+            return (80, 160, 255, 225) if note.hand == 1 else (255, 90, 90, 225)
+        return self.theme.note_colors.get(note_type, self.theme.note_colors[0])
 
     # ------------------------------------------------------------------
     # 轨道背景
@@ -153,27 +191,28 @@ class Renderer:
             self.draw.line([(x, top), (x, bottom)], fill=self.theme.track_split_line, width=1)
 
     # ------------------------------------------------------------------
-    # 变速区域
+    # 力度区域
     # ------------------------------------------------------------------
 
-    def _draw_variable_speed_layer(self):
-        base_bpm = self.chart.first_bpm
-        if not self.chart.timing_list:
+    def _draw_velocity_zone_layer(self):
+        if not self.chart.velocity_zone_list:
             return
 
         overlay = Image.new("RGBA", self.im.size, self.theme.transparent)
         overlay_draw = ImageDraw.Draw(overlay)
 
-        for i, timing in enumerate(self.chart.timing_list):
-            if abs(timing.bpm - base_bpm) < 0.1:
-                continue
-            end_ms = self.chart.timing_list[i + 1].time_ms if i + 1 < len(self.chart.timing_list) else self.chart.end_time
-            y1 = self.coord.time_to_y(timing.time_ms)
-            y2 = self.coord.time_to_y(end_ms)
+        for zone in self.chart.velocity_zone_list:
+            y1 = self.coord.time_to_y(zone.start_ms)
+            y2 = self.coord.time_to_y(zone.end_ms)
             top_y, bottom_y = min(y1, y2), max(y1, y2)
+            color = (
+                self.theme.velocity_zone_heavy_layer
+                if zone.velocity_type == 1
+                else self.theme.velocity_zone_light_layer
+            )
             overlay_draw.rectangle(
                 [self.coord.track_left, top_y, self.coord.track_right, bottom_y],
-                fill=self.theme.variable_speed_layer,
+                fill=color,
             )
 
         self.im.alpha_composite(overlay)
@@ -188,12 +227,36 @@ class Renderer:
                 continue
             self._draw_note(note)
 
+    def _rect_outside_canvas(self, left: int, top: int, right: int, bottom: int) -> bool:
+        return right <= 0 or left >= self.im.width or bottom <= 0 or top >= self.im.height
+
+    def _alpha_composite_clipped(self, image: Image.Image, dest: tuple[int, int]) -> bool:
+        x, y = dest
+        right = min(x + image.width, self.im.width)
+        bottom = min(y + image.height, self.im.height)
+        left = max(x, 0)
+        top = max(y, 0)
+
+        if right <= left or bottom <= top:
+            return False
+
+        if left == x and top == y and right - left == image.width and bottom - top == image.height:
+            self.im.alpha_composite(image, (x, y))
+            return True
+
+        crop_box = (left - x, top - y, right - x, bottom - y)
+        self.im.alpha_composite(image.crop(crop_box), (left, top))
+        return True
+
     def _draw_note(self, note: Note):
         left, top, right, bottom = self.coord.note_rect(note)
         color = self.theme.note_colors.get(note.note_type, self.theme.note_colors[0])
 
         if bottom - top < self.theme.note_height:
             bottom = top + self.theme.note_height
+
+        if self._rect_outside_canvas(left, top, right, bottom):
+            return
 
         if note.note_type == 2:
             self._draw_long(note, left, top, right, bottom)
@@ -225,8 +288,8 @@ class Renderer:
         if tex is None:
             return False
 
-        tex = tex.resize((w, h), Image.LANCZOS)
-        self.im.alpha_composite(tex, (left, top))
+        tex = self._apply_note_rounding(tex.resize((w, h), Image.LANCZOS), self._note_fill_color(note, note_type))
+        self._alpha_composite_clipped(tex, (left, top))
 
         if note.note_type in (4, 12) and (note.is_glissando_head() or note.is_glissando_tail()):
             self._glissando_arrows(note, left, top, right, bottom)
@@ -290,31 +353,31 @@ class Renderer:
         tail_tex = get_loader().get_long_end(note.key_width, note.hand)
 
         if head_tex:
-            head_tex = head_tex.resize((head_w, head_h), Image.LANCZOS)
-            self.im.alpha_composite(head_tex, (head_left, bottom - head_h))
+            head_tex = self._apply_note_rounding(head_tex.resize((head_w, head_h), Image.LANCZOS), self._note_fill_color(note, head_type))
+            self._alpha_composite_clipped(head_tex, (head_left, bottom - head_h))
         else:
             c = self.theme.note_colors.get(head_type, (100, 180, 255, 230))
-            self.draw.rectangle([head_left, bottom - head_h, head_left + head_w, bottom], fill=c)
+            self._rounded_rect([head_left, bottom - head_h, head_left + head_w, bottom], fill=c)
 
         if tail_tex:
-            tail_tex = tail_tex.resize((head_w, head_h), Image.LANCZOS)
-            self.im.alpha_composite(tail_tex, (head_left, top))
+            tail_tex = self._apply_note_rounding(tail_tex.resize((head_w, head_h), Image.LANCZOS), self._note_fill_color(note, head_type))
+            self._alpha_composite_clipped(tail_tex, (head_left, top))
         else:
             c = self.theme.note_colors.get(head_type, (100, 180, 255, 230))
-            self.draw.rectangle([head_left, top, head_left + head_w, top + head_h], fill=c)
+            self._rounded_rect([head_left, top, head_left + head_w, top + head_h], fill=c)
 
     # -- Fallbacks ------------------------------------------------------
 
     def _fallback_normal(self, note: Note, left: int, top: int, right: int, bottom: int, color: tuple):
-        self.draw.rectangle([left, top, right, bottom], fill=color)
-        self.draw.rectangle([left, top, right, bottom], outline=(*color[:3], 255), width=1)
+        self._rounded_rect([left, top, right, bottom], fill=color)
+        self._rounded_rect([left, top, right, bottom], fill=None, outline=(*color[:3], 255), width=1)
 
     def _fallback_glissando(self, note: Note, left: int, top: int, right: int, bottom: int, color: tuple):
-        self.draw.rectangle([left, top, right, bottom], fill=color)
+        self._rounded_rect([left, top, right, bottom], fill=color)
         self._glissando_arrows(note, left, top, right, bottom)
 
     def _fallback_chain(self, note: Note, left: int, top: int, right: int, bottom: int, color: tuple):
-        self.draw.rectangle([left, top, right, bottom], fill=color)
+        self._rounded_rect([left, top, right, bottom], fill=color)
         self._chain_dashes(left, top, right, bottom)
 
     # -- Decorations ----------------------------------------------------
@@ -602,8 +665,6 @@ class Renderer:
 
         diff = "Expert" if self.difficulty == "Extreme" else self.difficulty
         display_level = self.level
-        if diff == "Real" and display_level.isdigit():
-            display_level = str(int(display_level) - 10)
         level_str = f" {display_level}" if display_level else ""
         self.draw.text((text_x, cover_y + 110), f"Difficulty: {diff}{level_str}",
                        font=font_diff, fill=self.theme.text_subtitle, anchor="lm")
@@ -721,9 +782,19 @@ class Renderer:
 
     def save(self, path: str, **kwargs):
         if self.im:
+            image_format = kwargs.pop("format", None)
+            if image_format is None:
+                ext = os.path.splitext(path)[1].lower()
+                image_format = {
+                    ".jpg": "JPEG",
+                    ".jpeg": "JPEG",
+                    ".png": "PNG",
+                    ".webp": "WEBP",
+                }.get(ext, "PNG")
+
             rgb = Image.new("RGB", self.im.size, (18, 18, 24))
             rgb.paste(self.im, mask=self.im.split()[3])
-            rgb.save(path, "PNG", **kwargs)
+            rgb.save(path, image_format, **kwargs)
 
     def show(self):
         if self.im:

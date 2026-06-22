@@ -31,7 +31,7 @@ This library converts NOSTALGIA chart XML files into high-resolution PNG static 
 - All notes (Normal, Long, Glissando, Trill) with game-accurate textures
 - Glissando chain connections with parallelogram links
 - BPM changes and beat lines
-- Variable speed zones
+- Velocity zones from `velocity_zone_data` (light sections in pale blue, heavy sections in pale yellow)
 - Combo milestone markers (every 100 notes)
 - Song metadata header (cover, title, artist, difficulty, level)
 
@@ -70,7 +70,10 @@ Examples:
 python render_chart.py m_l0061_felys 3         # Real
 python render_chart.py m_t0052_summerdiary 2   # Expert
 python render_chart.py m_n0004_masumi 0        # Normal
+python render_chart.py m_t0087_turnthestory 3  # Uses the default batch-preview format
 ```
+
+The default preview format uses `resize=2.2` and `note_height=24`.
 
 ### Using as a Library
 

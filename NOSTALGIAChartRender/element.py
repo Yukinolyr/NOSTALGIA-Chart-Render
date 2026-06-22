@@ -20,6 +20,18 @@ class Timing:
 
 
 @dataclass(frozen=True, slots=True)
+class VelocityZone:
+    """力度区域。velocity_type=0 为轻段，1 为重段。"""
+    index: int
+    start_ms: int
+    end_ms: int
+    velocity_type: int
+
+    def __repr__(self) -> str:
+        return f"VelocityZone({self.start_ms}-{self.end_ms}ms, type={self.velocity_type})"
+
+
+@dataclass(frozen=True, slots=True)
 class Note:
     """音符"""
     index: int
@@ -57,10 +69,19 @@ class Note:
 class Chart:
     """谱面对象"""
 
-    def __init__(self, header: dict, timing_list: list[Timing], note_list: list[Note]):
+    def __init__(
+        self,
+        header: dict,
+        timing_list: list[Timing],
+        note_list: list[Note],
+        velocity_zone_list: list[VelocityZone] | None = None,
+        raw_note_count: int | None = None,
+    ):
         self.header = header
         self.timing_list = sorted(timing_list, key=lambda t: t.time_ms)
         self.note_list = sorted(note_list, key=lambda n: (n.start_ms, n.min_key_index))
+        self.velocity_zone_list = sorted(velocity_zone_list or [], key=lambda z: (z.start_ms, z.index))
+        self._raw_note_count = raw_note_count if raw_note_count is not None else len(note_list)
 
         self._end_time = max(
             (n.end_ms for n in self.note_list),
@@ -78,6 +99,18 @@ class Chart:
     @property
     def finish_time_ms(self) -> int:
         return self.header.get("finish_time_ms", self._end_time)
+
+    @property
+    def raw_note_count(self) -> int:
+        return self._raw_note_count
+
+    @property
+    def visible_note_count(self) -> int:
+        return len(self.note_list)
+
+    @property
+    def hidden_note_count(self) -> int:
+        return self._raw_note_count - len(self.note_list)
 
     def get_bpm_at(self, time_ms: int) -> float:
         bpm = self.first_bpm
@@ -138,4 +171,9 @@ class Chart:
         return chains
 
     def __repr__(self) -> str:
-        return f"Chart(notes={len(self.note_list)}, timings={len(self.timing_list)}, duration={self.end_time/1000:.1f}s)"
+        return (
+            f"Chart(raw_notes={self.raw_note_count}, visible_notes={self.visible_note_count}, "
+            f"hidden_notes={self.hidden_note_count}, timings={len(self.timing_list)}, "
+            f"velocity_zones={len(self.velocity_zone_list)}, "
+            f"duration={self.end_time/1000:.1f}s)"
+        )
