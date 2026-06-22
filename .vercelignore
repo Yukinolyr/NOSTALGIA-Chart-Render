@@ -1,0 +1,12 @@
+public/charts/**
+public/charts_chartonly/**
+public/charts_chartonly_webp/**
+public/covers/**
+output/**
+logs/**
+work/**
+__pycache__/**
+NOSTALGIAChartRender/__pycache__/**
+*.pyc
+.venv/**
+.git/**

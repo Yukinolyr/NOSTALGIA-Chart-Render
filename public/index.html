@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NOSTALGIA 谱面目录 - 雪月</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260527-purple-accent" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel">
+        <header class="brand">
+          <div>
+            <h1>NOSTALGIA 谱面目录</h1>
+            <p id="libraryStatus">Loading index</p>
+          </div>
+        </header>
+
+        <div class="search-area">
+          <label for="searchInput">歌曲搜索</label>
+          <div class="search-row">
+            <input id="searchInput" type="search" placeholder="搜索曲名、作者或 basename" autocomplete="off" />
+            <button id="searchButton" type="button">搜索</button>
+          </div>
+        </div>
+
+        <div id="songResults" class="song-results" aria-live="polite"></div>
+
+        <p id="statusText" class="status-text"></p>
+      </section>
+
+      <section class="preview-panel">
+        <div class="preview-toolbar">
+          <div class="preview-cover hidden">
+            <img id="previewCover" alt="" />
+          </div>
+          <div class="preview-info">
+            <strong id="previewTitle">No chart selected</strong>
+            <div class="preview-meta-row">
+              <span id="previewArtist"></span>
+              <span id="previewDifficulty" class="preview-chip"></span>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <button id="listButton" type="button">目录</button>
+          </div>
+          <div id="previewMeta" class="preview-chart-stats"></div>
+        </div>
+        <div id="imageStage" class="image-stage">
+          <img id="chartImage" alt="" />
+          <div id="imageLoading" class="image-state hidden">谱面加载中</div>
+          <div id="imageError" class="image-state error hidden">图片不可用</div>
+          <div id="emptyState" class="empty-state">请选择谱面</div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js?v=20260527-r2-index"></script>
+  </body>
+</html>

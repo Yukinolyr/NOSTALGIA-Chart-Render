@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NOSTALGIA Chart Preview</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel">
+        <header class="brand">
+          <div>
+            <h1>NOSTALGIA Chart Preview</h1>
+            <p id="libraryStatus">Loading index</p>
+          </div>
+          <button id="refreshButton" type="button">Refresh</button>
+        </header>
+
+        <div class="search-area">
+          <label for="searchInput">Song</label>
+          <div class="search-row">
+            <input id="searchInput" type="search" placeholder="Search title, artist, or basename" autocomplete="off" />
+            <button id="searchButton" type="button">Search</button>
+          </div>
+        </div>
+
+        <div id="songResults" class="song-results" aria-live="polite"></div>
+
+        <section class="selection-area">
+          <div class="selected-song">
+            <span class="label">Selected</span>
+            <strong id="selectedTitle">None</strong>
+            <span id="selectedArtist"></span>
+          </div>
+          <div id="difficultyButtons" class="difficulty-buttons"></div>
+        </section>
+        <p id="statusText" class="status-text"></p>
+      </section>
+
+      <section class="preview-panel">
+        <div class="preview-toolbar">
+          <div>
+            <strong id="previewTitle">No chart rendered</strong>
+            <span id="previewMeta"></span>
+          </div>
+          <a id="openImageLink" href="#" target="_blank" rel="noreferrer" aria-disabled="true">Open image</a>
+        </div>
+        <div class="image-stage">
+          <img id="chartImage" alt="" />
+          <div id="emptyState" class="empty-state">Select a chart</div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
